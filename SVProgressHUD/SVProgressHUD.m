@@ -52,6 +52,7 @@ static const CGFloat SVProgressHUDParallaxDepthPoints = 10;
 
 @property (nonatomic, readonly) CGFloat visibleKeyboardHeight;
 @property (nonatomic, assign) UIOffset offsetFromCenter;
+@property (nonatomic, getter = isVisible) BOOL visible;
 
 
 - (void)showProgress:(float)progress
@@ -60,7 +61,8 @@ static const CGFloat SVProgressHUDParallaxDepthPoints = 10;
 
 - (void)showImage:(UIImage*)image
            status:(NSString*)status
-         duration:(NSTimeInterval)duration;
+         duration:(NSTimeInterval)duration
+         maskType:(SVProgressHUDMaskType)hudMaskType;
 
 - (void)dismiss;
 
@@ -153,17 +155,31 @@ static const CGFloat SVProgressHUDParallaxDepthPoints = 10;
 
 + (void)showSuccessWithStatus:(NSString *)string {
     [self sharedView];
-    [self showImage:SVProgressHUDSuccessImage status:string];
+    [self showImage:SVProgressHUDSuccessImage status:string maskType:SVProgressHUDMaskTypeNone];
+}
+
++ (void)showSuccessWithStatus:(NSString*)string maskType:(SVProgressHUDMaskType)maskType {
+    [self sharedView];
+    [self showImage:SVProgressHUDErrorImage status:string maskType:maskType];
 }
 
 + (void)showErrorWithStatus:(NSString *)string {
     [self sharedView];
-    [self showImage:SVProgressHUDErrorImage status:string];
+    [self showImage:SVProgressHUDErrorImage status:string maskType:SVProgressHUDMaskTypeNone];
+}
+
++ (void)showErrorWithStatus:(NSString*)string maskType:(SVProgressHUDMaskType)maskType {
+    [self sharedView];
+    [self showImage:SVProgressHUDErrorImage status:string maskType:maskType];
 }
 
 + (void)showImage:(UIImage *)image status:(NSString *)string {
-    NSTimeInterval displayInterval = [[SVProgressHUD sharedView] displayDurationForString:string];
-    [[self sharedView] showImage:image status:string duration:displayInterval];
+    [self showImage:image status:string maskType:SVProgressHUDMaskTypeNone];
+}
+
++ (void)showImage:(UIImage *)image status:(NSString *)string maskType:(SVProgressHUDMaskType)maskType {
+    NSTimeInterval displayInterval = [[self sharedView] displayDurationForString:string];
+    [[self sharedView] showImage:image status:string duration:displayInterval maskType:maskType];
 }
 
 
@@ -281,15 +297,25 @@ static const CGFloat SVProgressHUDParallaxDepthPoints = 10;
                                             options:(NSStringDrawingUsesFontLeading|NSStringDrawingTruncatesLastVisibleLine|NSStringDrawingUsesLineFragmentOrigin)
                                          attributes:@{NSFontAttributeName: self.stringLabel.font}
                                             context:NULL];
-        } else {
-            CGSize stringSize;
-            #ifdef __IPHONE_8_0
+        }
+        else
+        {
+            CGSize stringSize = CGSizeMake(200, 300);
+
+            if (SYSTEM_VERSION_GREATER_THAN_OR_EQUAL_TO(@"8.0"))
+            {
                 stringSize = [string sizeWithAttributes:@{NSFontAttributeName:[UIFont fontWithName:self.stringLabel.font.fontName size:self.stringLabel.font.pointSize]}];
-            #else
+            }
+            else
+            {
+                #if __IPHONE_OS_VERSION_MAX_ALLOWED < __IPHONE_8_0
                 stringSize = [string sizeWithFont:self.stringLabel.font constrainedToSize:CGSizeMake(200, 300)];
-            #endif
+                #endif
+            }
+
             stringRect = CGRectMake(0.0f, 0.0f, stringSize.width, stringSize.height);
         }
+
         stringWidth = stringRect.size.width;
         stringHeight = ceil(stringRect.size.height);
         
@@ -311,7 +337,7 @@ static const CGFloat SVProgressHUDParallaxDepthPoints = 10;
             labelRect = CGRectMake(0, labelRectY, hudWidth, stringHeight);
         }
     }
-	
+
 	self.hudView.bounds = CGRectMake(0, 0, hudWidth, hudHeight);
     
     if(string)
@@ -403,17 +429,12 @@ static const CGFloat SVProgressHUDParallaxDepthPoints = 10;
 - (void)positionHUD:(NSNotification*)notification {
     
     CGFloat keyboardHeight;
-    double animationDuration;
+    double animationDuration = 0;
     
     UIInterfaceOrientation orientation = [[UIApplication sharedApplication] statusBarOrientation];
-    // no transforms applied to window in iOS 8, but only if compiled with iOS 8 sdk as base sdk, otherwise system supports old rotation logic.
-    BOOL ignoreOrientation = NO;
-#if __IPHONE_OS_VERSION_MAX_ALLOWED >= 80000
-    if ([[NSProcessInfo processInfo] respondsToSelector:@selector(operatingSystemVersion)]) {
-      ignoreOrientation = YES;
-    }
-#endif
-
+    // no transforms applied to window in iOS 8
+    BOOL ignoreOrientation = [[NSProcessInfo processInfo] respondsToSelector:@selector(operatingSystemVersion)];
+    
     if(notification) {
         NSDictionary* keyboardInfo = [notification userInfo];
         CGRect keyboardFrame = [[keyboardInfo valueForKey:UIKeyboardFrameBeginUserInfoKey] CGRectValue];
@@ -559,7 +580,10 @@ static const CGFloat SVProgressHUDParallaxDepthPoints = 10;
     self.overlayView.backgroundColor = [UIColor clearColor];
     [self positionHUD:nil];
     
-    if(self.alpha != 1) {
+//    if(self.alpha != 1) {
+    if(!self.isVisible) {
+        [self setVisible:YES];
+
         NSDictionary *userInfo = [self notificationUserInfo];
         [[NSNotificationCenter defaultCenter] postNotificationName:SVProgressHUDWillAppearNotification
                                                             object:nil
@@ -610,7 +634,7 @@ static const CGFloat SVProgressHUDParallaxDepthPoints = 10;
   return tintedImage;
 }
 
-- (void)showImage:(UIImage *)image status:(NSString *)string duration:(NSTimeInterval)duration {
+- (void)showImage:(UIImage *)image status:(NSString *)string duration:(NSTimeInterval)duration maskType:(SVProgressHUDMaskType)hudMaskType {
     self.progress = -1;
     [self cancelRingLayerAnimation];
     
@@ -629,6 +653,7 @@ static const CGFloat SVProgressHUDParallaxDepthPoints = 10;
     [self updatePosition];
     [self.indefiniteAnimatedView removeFromSuperview];
     
+    self.maskType = hudMaskType;
     if(self.maskType != SVProgressHUDMaskTypeNone) {
         self.accessibilityLabel = string;
         self.isAccessibilityElement = YES;
@@ -645,6 +670,7 @@ static const CGFloat SVProgressHUDParallaxDepthPoints = 10;
 }
 
 - (void)dismiss {
+    [self setVisible:NO];
     NSDictionary *userInfo = [self notificationUserInfo];
     [[NSNotificationCenter defaultCenter] postNotificationName:SVProgressHUDWillDisappearNotification
                                                         object:nil
@@ -770,7 +796,7 @@ static const CGFloat SVProgressHUDParallaxDepthPoints = 10;
 #pragma mark - Utilities
 
 + (BOOL)isVisible {
-    return ([self sharedView].alpha == 1);
+    return [self sharedView].isVisible;
 }
 
 

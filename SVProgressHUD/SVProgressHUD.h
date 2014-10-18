@@ -18,12 +18,14 @@ extern NSString * const SVProgressHUDDidAppearNotification;
 
 extern NSString * const SVProgressHUDStatusUserInfoKey;
 
-typedef NS_ENUM(NSUInteger, SVProgressHUDMaskType) {
+enum {
     SVProgressHUDMaskTypeNone = 1, // allow user interactions while HUD is displayed
     SVProgressHUDMaskTypeClear, // don't allow
     SVProgressHUDMaskTypeBlack, // don't allow and dim the UI in the back of the HUD
     SVProgressHUDMaskTypeGradient // don't allow and dim the UI with a a-la-alert-view bg gradient
 };
+
+typedef NSUInteger SVProgressHUDMaskType;
 
 @interface SVProgressHUD : UIView
 
@@ -51,8 +53,11 @@ typedef NS_ENUM(NSUInteger, SVProgressHUDMaskType) {
 
 // stops the activity indicator, shows a glyph + status, and dismisses HUD 1s later
 + (void)showSuccessWithStatus:(NSString*)string;
++ (void)showSuccessWithStatus:(NSString*)string maskType:(SVProgressHUDMaskType)maskType;
 + (void)showErrorWithStatus:(NSString *)string;
++ (void)showErrorWithStatus:(NSString *)string maskType:(SVProgressHUDMaskType)maskType;
 + (void)showImage:(UIImage*)image status:(NSString*)status; // use 28x28 white pngs
++ (void)showImage:(UIImage*)image status:(NSString*)status maskType:(SVProgressHUDMaskType)maskType;
 
 + (void)setOffsetFromCenter:(UIOffset)offset;
 + (void)resetOffsetFromCenter;
